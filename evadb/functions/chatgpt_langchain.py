@@ -18,23 +18,7 @@ import os
 
 import pandas as pd
 from langchain.globals import set_llm_cache
-from langchain_community.cache import CassandraSemanticCache
-import cassio
 from retry import retry
-# import hashlib
-#
-# from gptcache import Cache
-# from gptcache.adapter.api import init_similar_cache
-# from langchain.cache import GPTCache
-#
-#
-# def get_hashed_name(name):
-#     return hashlib.sha256(name.encode()).hexdigest()
-#
-#
-# def init_gptcache(cache_obj: Cache, llm: str):
-#     hashed_llm = get_hashed_name(llm)
-#     init_similar_cache(cache_obj=cache_obj, data_dir=f"similar_cache_{hashed_llm}")
 
 from langchain.cache import RedisSemanticCache
 from langchain_openai import OpenAIEmbeddings
@@ -72,18 +56,6 @@ def construct_embedding(provider_name: str, model_name: str = "sentence-transfor
     else:
         raise ValueError(f"Unknown embeddings provider given: {provider_name}")
 
-
-# _VALID_CACHE_PROVIDERS = {
-#     "redis": RedisSemanticCache(redis_url="redis://localhost:6379",
-#                                 embedding=OpenAIEmbeddings(),
-#                                 score_threshold=0.2),
-#     # "cassandra": CassandraSemanticCache(
-#     #     session=None,
-#     #     keyspace=None,
-#     #     embedding=OpenAIEmbeddings(),
-#     #     table_name="cass_sem_cache",
-#     # )
-# }
 
 _VALID_EMBEDDINGS = {
     "OPENAI": OpenAIEmbeddings
@@ -151,47 +123,31 @@ class ChatGPTUsingLangchain(AbstractFunction):
         self.model = model
         self.temperature = temperature
         self.openai_api_key = openai_api_key
-        # set_llm_cache(GPTCache(init_gptcache))
 
-        # Redit
+        # Redis
         if use_semantic_cache:
             embedding = construct_embedding(semantic_cache_embedding, semantic_cache_model)
             semantic_cache = RedisSemanticCache(redis_url=vector_store_url,
-                                   embedding=embedding,
-                                   score_threshold=score_threshold)
+                                                embedding=embedding,
+                                                score_threshold=score_threshold)
             # semantic_cache.clear()
             set_llm_cache(
                 semantic_cache
             )
 
-        # Cassandra
-
-        # from cassandra.auth import PlainTextAuthProvider
-        # from cassandra.cluster import Cluster
-        #
-        # cluster = Cluster()
-        # session = cluster.connect()
-        #
-        # semantic_cache = CassandraSemanticCache(
-        #     session=session,
-        #     keyspace="evadb_chatgpt_semantic_cache",
-        #     embedding=OpenAIEmbeddings(),
-        #     table_name="cass_sem_cache",
-        # )
-        #
-        # semantic_cache.clear()
-        # set_llm_cache(semantic_cache)
+            semantic_cache
 
     @forward(
         input_signatures=[
             PandasDataframe(
-                columns=["query", "content", "prompt"],
+                columns=["query", "content", "prompt", "skip_cache"],
                 column_types=[
                     NdArrayType.STR,
                     NdArrayType.STR,
                     NdArrayType.STR,
+                    NdArrayType.BOOL
                 ],
-                column_shapes=[(1,), (1,), (None,)],
+                column_shapes=[(1,), (1,), (None,), (None,)],
             )
         ],
         output_signatures=[
@@ -215,7 +171,17 @@ class ChatGPTUsingLangchain(AbstractFunction):
                 len(api_key) != 0
         ), "Please set your OpenAI API key using SET OPENAI_API_KEY = 'sk-' or environment variable (OPENAI_API_KEY)"
 
-        llm = ChatOpenAI(model=self.model, temperature=self.temperature, api_key=api_key)
+        skip_cache = False
+        if len(text_df.columns) > 2:
+            skip_cache = text_df.iloc[0, 3]
+
+        if skip_cache:
+            print(f"Skipping cache: {skip_cache}")
+            llm = ChatOpenAI(model=self.model, temperature=self.temperature, api_key=api_key, cache=False)
+        else:
+            print("Using cache")
+            llm = ChatOpenAI(model=self.model, temperature=self.temperature, api_key=api_key)
+
 
         @retry(tries=6, delay=20)
         def completion_with_backoff(messages):

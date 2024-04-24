@@ -20,16 +20,29 @@ model 'gpt-3.5-turbo';
 #
 # print(cursor.query("SELECT * FROM TestTable2").df())
 
-chatgpt_udf = """
-    SELECT ChatGPTWithLangchain('About what sport is the question given below? Answer in 1 word only. Sport:', id)
+no_cache_chatgpt_udf = """
+    SELECT ChatGPTWithLangchain('About what sport is the question given below? Answer in 1 word only. Sport:', id, 'You are a helpful assistant whose job is it to answer the questions you are asked.', TRUE)
+    FROM TestTable2;
+"""
+cache_chatgpt_udf = """
+    SELECT ChatGPTWithLangchain('About what sport is the question given below? Answer in 1 word only. Sport:', id, 'You are a helpful assistant whose job is it to answer the questions you are asked.', FALSE)
     FROM TestTable2;
 """
 from time import time
 
+# latencies = []
+#
+# start_time = time()
+# print(cursor.query(no_cache_chatgpt_udf).df())
+# end_time = time()
+# latencies.append(end_time - start_time)
+#
+# print (latencies)
+
 latencies = []
 
 start_time = time()
-print(cursor.query(chatgpt_udf).df())
+print(cursor.query(cache_chatgpt_udf).df())
 end_time = time()
 latencies.append(end_time - start_time)
 
