@@ -135,8 +135,6 @@ class ChatGPTUsingLangchain(AbstractFunction):
                 semantic_cache
             )
 
-            semantic_cache
-
     @forward(
         input_signatures=[
             PandasDataframe(

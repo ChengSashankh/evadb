@@ -30,14 +30,14 @@ cache_chatgpt_udf = """
 """
 from time import time
 
-# latencies = []
-#
-# start_time = time()
-# print(cursor.query(no_cache_chatgpt_udf).df())
-# end_time = time()
-# latencies.append(end_time - start_time)
-#
-# print (latencies)
+latencies = []
+
+start_time = time()
+print(cursor.query(no_cache_chatgpt_udf).df())
+end_time = time()
+latencies.append(end_time - start_time)
+
+print (latencies)
 
 latencies = []
 
