@@ -517,6 +517,14 @@ def try_to_import_openai():
                 Please install them with `pip install openai`."""
         )
 
+def try_to_import_langchain_openai():
+    try:
+        import langchain_openai  # noqa: F401
+    except ImportError:
+        raise ValueError(
+            """Could not import langchain package.
+                Please install it with `pip install langchain`."""
+        )
 
 def try_to_import_langchain():
     try:

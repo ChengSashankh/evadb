@@ -17,18 +17,32 @@
 import os
 
 import pandas as pd
-from gptcache.embedding import Onnx
-from gptcache.manager import get_data_manager, CacheBase, VectorBase
-from gptcache.similarity_evaluation import SearchDistanceEvaluation
+from langchain.globals import set_llm_cache
 from retry import retry
-from gptcache.adapter.openai import cache_openai_chat_complete
-from gptcache import cache
+# import hashlib
+#
+# from gptcache import Cache
+# from gptcache.adapter.api import init_similar_cache
+# from langchain.cache import GPTCache
+#
+#
+# def get_hashed_name(name):
+#     return hashlib.sha256(name.encode()).hexdigest()
+#
+#
+# def init_gptcache(cache_obj: Cache, llm: str):
+#     hashed_llm = get_hashed_name(llm)
+#     init_similar_cache(cache_obj=cache_obj, data_dir=f"similar_cache_{hashed_llm}")
+
+from langchain.cache import RedisSemanticCache
+from langchain_openai import OpenAIEmbeddings
+
 
 from evadb.catalog.catalog_type import NdArrayType
 from evadb.functions.abstract.abstract_function import AbstractFunction
 from evadb.functions.decorators.decorators import forward, setup
 from evadb.functions.decorators.io_descriptors.data_types import PandasDataframe
-from evadb.utils.generic_utils import try_to_import_openai
+from evadb.utils.generic_utils import try_to_import_openai, try_to_import_langchain_openai
 
 _VALID_CHAT_COMPLETION_MODEL = [
     "gpt-4",
@@ -40,7 +54,7 @@ _VALID_CHAT_COMPLETION_MODEL = [
 ]
 
 
-class ChatGPTWithCache(AbstractFunction):
+class ChatGPTUsingLangchain(AbstractFunction):
     """
     Arguments:
         model (str) : ID of the OpenAI model to use. Refer to '_VALID_CHAT_COMPLETION_MODEL' for a list of supported models.
@@ -82,29 +96,25 @@ class ChatGPTWithCache(AbstractFunction):
 
     @property
     def name(self) -> str:
-        return "ChatGPTWithCache"
+        return "ChatGPTUsingLangchain"
 
-    @setup(cacheable=False, function_type="chat-completion", batchable=True)
+    @setup(cacheable=True, function_type="chat-completion", batchable=True)
     def setup(
-        self,
-        model="gpt-3.5-turbo",
-        temperature: float = 0,
-        openai_api_key="",
+            self,
+            model="gpt-3.5-turbo",
+            temperature: float = 0,
+            openai_api_key="",
     ) -> None:
-        print("Running set up")
-        assert model in _VALID_CHAT_COMPLETION_MODEL, f"Unsupported ChatGPTWithCache {model}"
+        assert model in _VALID_CHAT_COMPLETION_MODEL, f"Unsupported ChatGPT {model}"
         self.model = model
         self.temperature = temperature
         self.openai_api_key = openai_api_key
-
-        onnx = Onnx()
-        data_manager = get_data_manager(CacheBase("sqlite"), VectorBase("faiss", dimension=onnx.dimension))
-        cache.init(
-            embedding_func=onnx.to_embeddings,
-            data_manager=data_manager,
-            similarity_evaluation=SearchDistanceEvaluation(),
+        # set_llm_cache(GPTCache(init_gptcache))
+        set_llm_cache(
+            RedisSemanticCache(redis_url="redis://localhost:6379",
+                               embedding=OpenAIEmbeddings(),
+                               score_threshold=0.2)
         )
-        cache.set_openai_key()
 
     @forward(
         input_signatures=[
@@ -129,25 +139,21 @@ class ChatGPTWithCache(AbstractFunction):
         ],
     )
     def forward(self, text_df):
-        print ("Starting forward")
-        try_to_import_openai()
-        from openai import OpenAI
-        print ("Imported OpenAI")
+        try_to_import_langchain_openai()
+        from langchain_openai import ChatOpenAI
 
         api_key = self.openai_api_key
         if len(self.openai_api_key) == 0:
             api_key = os.environ.get("OPENAI_API_KEY", "")
         assert (
-            len(api_key) != 0
+                len(api_key) != 0
         ), "Please set your OpenAI API key using SET OPENAI_API_KEY = 'sk-' or environment variable (OPENAI_API_KEY)"
 
-        client = OpenAI(api_key=api_key)
-        print ("Initialized OpenAI client")
+        llm = ChatOpenAI(model=self.model, temperature=self.temperature, api_key=api_key)
 
         @retry(tries=6, delay=20)
-        def completion_with_backoff(**kwargs):
-            print(f"Calling completion api with: {kwargs}")
-            return cache_openai_chat_complete(client, **kwargs)
+        def completion_with_backoff(messages):
+            return llm.invoke(messages)
 
         queries = text_df[text_df.columns[0]]
         content = text_df[text_df.columns[0]]
@@ -164,37 +170,14 @@ class ChatGPTWithCache(AbstractFunction):
         results = []
 
         for query, content in zip(queries, content):
-            params = {
-                "model": self.model,
-                "temperature": self.temperature,
-                "messages": [],
-            }
+            messages = [
+                ("system",
+                 prompt if prompt is not None else "You are a helpful assistant that accomplishes user tasks."),
+                ("user", f"Here is a piece of text: \"{content}\"\n Complete the following task: {query}"),
+            ]
 
-            def_sys_prompt_message = {
-                "role": "system",
-                "content": prompt
-                if prompt is not None
-                else "You are a helpful assistant that accomplishes user tasks.",
-            }
-
-            params["messages"].append(def_sys_prompt_message)
-            params["messages"].extend(
-                [
-                    {
-                        "role": "user",
-                        "content": f"Here is some context : {content}",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Complete the following task: {query}",
-                    },
-                ],
-            )
-
-            print ("Calling for prompt")
-            response = completion_with_backoff(**params)
-            print ("Done with prompt")
-            answer = response.choices[0].message.content
+            response = completion_with_backoff(messages)
+            answer = response.content
             results.append(answer)
 
         df = pd.DataFrame({"response": results})

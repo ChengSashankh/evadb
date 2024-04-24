@@ -81,6 +81,7 @@ document_libs = [
     "protobuf",
     "bs4",
     "openai>=1.0",  # CHATGPT
+    "langchain-openai", # CHATGPT through Langchain
     "gpt4all",  # PRIVATE GPT
     "sentencepiece",  # TRANSFORMERS
     # "git+https://github.com/zilliztech/GPTCache.git@dev" # CHATGPT_WITH_CACHE
@@ -139,6 +140,11 @@ imagegen_libs = [
     "replicate"
 ]
 
+langchain_gpt_libs = [
+    "langchain-openai",
+    "redis",
+]
+
 ### NEEDED FOR DEVELOPER TESTING ONLY
 
 dev_libs = [
@@ -185,7 +191,7 @@ EXTRA_REQUIRES = {
     "forecasting": forecasting_libs,
     "hackernews": hackernews_libs,
     # everything except ray, qdrant, ludwig and postgres. The first three fail on pyhton 3.11.
-    "dev": dev_libs + vision_libs + document_libs + function_libs + notebook_libs + forecasting_libs + sklearn_libs + imagegen_libs + xgboost_libs
+    "dev": dev_libs + vision_libs + document_libs + function_libs + notebook_libs + forecasting_libs + sklearn_libs + imagegen_libs + xgboost_libs + langchain_gpt_libs
 }
 
 setup(
