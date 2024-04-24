@@ -114,9 +114,9 @@ class ChatGPTUsingLangchain(AbstractFunction):
             openai_api_key="",
             use_semantic_cache=True,
             cache_provider="REDIS",
-            semantic_cache_embedding="HUGGINGFACE",
-            semantic_cache_model="sentence-transformers/all-mpnet-base-v2",
-            score_threshold=0.2,
+            semantic_cache_embedding="OPENAI",
+            semantic_cache_model=None,#"sentence-transformers/all-mpnet-base-v2",
+            score_threshold=0.05,
             vector_store_url="redis://localhost:6379"
     ) -> None:
         assert model in _VALID_CHAT_COMPLETION_MODEL, f"Unsupported ChatGPT {model}"
