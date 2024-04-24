@@ -83,6 +83,7 @@ document_libs = [
     "openai>=1.0",  # CHATGPT
     "gpt4all",  # PRIVATE GPT
     "sentencepiece",  # TRANSFORMERS
+    # "git+https://github.com/zilliztech/GPTCache.git@dev" # CHATGPT_WITH_CACHE
 ]
 
 function_libs = [
