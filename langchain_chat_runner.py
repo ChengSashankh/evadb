@@ -4,14 +4,14 @@ from gptcache.adapter.openai import cache_openai_chat_complete
 cursor = evadb.connect().cursor()
 print(cursor.query("SHOW FUNCTIONS;").df())
 
-# cursor.query("DROP FUNCTION IF EXISTS ChatGPTWithLangchain").df()
-#
-# cursor.query("""
-# CREATE FUNCTION ChatGPTWithLangchain
-# IMPL 'evadb/functions/chatgpt_langchain.py'
-# model 'gpt-3.5-turbo';
-# """).df()
-#
+cursor.query("DROP FUNCTION IF EXISTS ChatGPTWithLangchain").df()
+
+cursor.query("""
+CREATE FUNCTION ChatGPTWithLangchain
+IMPL 'evadb/functions/chatgpt_langchain.py'
+model 'gpt-3.5-turbo';
+""").df()
+
 # print(cursor.query("SHOW FUNCTIONS;").df())
 #
 # print(cursor.query("CREATE TABLE IF NOT EXISTS TestTable2 (id TEXT);").df())

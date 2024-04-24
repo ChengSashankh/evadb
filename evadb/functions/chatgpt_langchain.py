@@ -18,6 +18,8 @@ import os
 
 import pandas as pd
 from langchain.globals import set_llm_cache
+from langchain_community.cache import CassandraSemanticCache
+import cassio
 from retry import retry
 # import hashlib
 #
@@ -37,7 +39,6 @@ from retry import retry
 from langchain.cache import RedisSemanticCache
 from langchain_openai import OpenAIEmbeddings
 
-
 from evadb.catalog.catalog_type import NdArrayType
 from evadb.functions.abstract.abstract_function import AbstractFunction
 from evadb.functions.decorators.decorators import forward, setup
@@ -52,6 +53,41 @@ _VALID_CHAT_COMPLETION_MODEL = [
     "gpt-3.5-turbo",
     "gpt-3.5-turbo-0301",
 ]
+
+
+def construct_embedding(provider_name: str, model_name: str = "sentence-transformers/all-mpnet-base-v2"):
+    if provider_name == "OPENAI":
+        return OpenAIEmbeddings()
+    elif provider_name == "HUGGINGFACE":
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+
+        # model_name = ""
+        model_kwargs = {'device': 'cpu'}
+        encode_kwargs = {'normalize_embeddings': True}
+        return HuggingFaceEmbeddings(
+            model_name=model_name,
+            model_kwargs=model_kwargs,
+            encode_kwargs=encode_kwargs
+        )
+    else:
+        raise ValueError(f"Unknown embeddings provider given: {provider_name}")
+
+
+# _VALID_CACHE_PROVIDERS = {
+#     "redis": RedisSemanticCache(redis_url="redis://localhost:6379",
+#                                 embedding=OpenAIEmbeddings(),
+#                                 score_threshold=0.2),
+#     # "cassandra": CassandraSemanticCache(
+#     #     session=None,
+#     #     keyspace=None,
+#     #     embedding=OpenAIEmbeddings(),
+#     #     table_name="cass_sem_cache",
+#     # )
+# }
+
+_VALID_EMBEDDINGS = {
+    "OPENAI": OpenAIEmbeddings
+}
 
 
 class ChatGPTUsingLangchain(AbstractFunction):
@@ -104,17 +140,47 @@ class ChatGPTUsingLangchain(AbstractFunction):
             model="gpt-3.5-turbo",
             temperature: float = 0,
             openai_api_key="",
+            use_semantic_cache=True,
+            cache_provider="REDIS",
+            semantic_cache_embedding="HUGGINGFACE",
+            semantic_cache_model="sentence-transformers/all-mpnet-base-v2",
+            score_threshold=0.2,
+            vector_store_url="redis://localhost:6379"
     ) -> None:
         assert model in _VALID_CHAT_COMPLETION_MODEL, f"Unsupported ChatGPT {model}"
         self.model = model
         self.temperature = temperature
         self.openai_api_key = openai_api_key
         # set_llm_cache(GPTCache(init_gptcache))
-        set_llm_cache(
-            RedisSemanticCache(redis_url="redis://localhost:6379",
-                               embedding=OpenAIEmbeddings(),
-                               score_threshold=0.2)
-        )
+
+        # Redit
+        if use_semantic_cache:
+            embedding = construct_embedding(semantic_cache_embedding, semantic_cache_model)
+            semantic_cache = RedisSemanticCache(redis_url=vector_store_url,
+                                   embedding=embedding,
+                                   score_threshold=score_threshold)
+            # semantic_cache.clear()
+            set_llm_cache(
+                semantic_cache
+            )
+
+        # Cassandra
+
+        # from cassandra.auth import PlainTextAuthProvider
+        # from cassandra.cluster import Cluster
+        #
+        # cluster = Cluster()
+        # session = cluster.connect()
+        #
+        # semantic_cache = CassandraSemanticCache(
+        #     session=session,
+        #     keyspace="evadb_chatgpt_semantic_cache",
+        #     embedding=OpenAIEmbeddings(),
+        #     table_name="cass_sem_cache",
+        # )
+        #
+        # semantic_cache.clear()
+        # set_llm_cache(semantic_cache)
 
     @forward(
         input_signatures=[

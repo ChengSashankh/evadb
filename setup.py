@@ -143,6 +143,7 @@ imagegen_libs = [
 langchain_gpt_libs = [
     "langchain-openai",
     "redis",
+    "cassio"
 ]
 
 ### NEEDED FOR DEVELOPER TESTING ONLY
