@@ -211,5 +211,8 @@ class ChatGPTUsingLangchain(AbstractFunction):
             results.append(answer)
 
         df = pd.DataFrame({"response": results})
+        from langchain.globals import get_llm_cache
+        llm_cache = get_llm_cache()
 
+        print (f"Cache hits: {llm_cache.cache_hits} | Cache misses: {llm_cache.cache_misses}")
         return df

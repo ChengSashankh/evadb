@@ -4,11 +4,11 @@ import numpy as np
 from time import time
 
 cursor = evadb.connect().cursor()
-print(cursor.query("SHOW FUNCTIONS;").df())
-print(cursor.query("DROP TABLE IF EXISTS ques_keys").df())
-print(cursor.query("CREATE TABLE IF NOT EXISTS ques_keys(question TEXT, keys TEXT)").df())
-print(cursor.query(f"LOAD CSV 'questions_keys.csv' INTO ques_keys").df())
-print(cursor.query("SHOW TABLES;").df())
+# print(cursor.query("SHOW FUNCTIONS;").df())
+cursor.query("DROP TABLE IF EXISTS ques_keys").df()
+cursor.query("CREATE TABLE IF NOT EXISTS ques_keys(question TEXT, keys TEXT)").df()
+cursor.query(f"LOAD CSV 'questions_keys.csv' INTO ques_keys").df()
+# print(cursor.query("SHOW TABLES;").df())
 
 
 def create_user_defined_function(cursor, embedding_provider, semantic_cache_model, cache_threshold):
@@ -41,7 +41,7 @@ def view_data(table_name: str):
 def get_chatgpt_query_without_cache():
     no_cache_chatgpt_udf = f"""
         SELECT ChatGPTWithLangchain('About what subject is the question given below. Your answer must be one of Chemistry, Computer Science (cs), Geography, Math, Physics. \n Answer in one word only. \n Subject:', question, 'You are a helpful assistant whose job it is to answer the questions you are asked.', TRUE)
-        FROM ques_keys LIMIT 5;
+        FROM ques_keys;
     """
 
     return no_cache_chatgpt_udf
@@ -50,7 +50,7 @@ def get_chatgpt_query_without_cache():
 def get_chatgpt_query_with_cache():
     cache_chatgpt_udf = f"""
         SELECT ChatGPTWithLangchain('About what subject is the question given below. Your answer must be one of Chemistry, Computer Science (cs), Geography, Math, Physics. \n Answer in one word only. \n Subject:', question, 'You are a helpful assistant whose job it is to answer the questions you are asked.', FALSE)
-        FROM ques_keys LIMIT 5;
+        FROM ques_keys;
     """
 
     return cache_chatgpt_udf
@@ -94,8 +94,8 @@ def get_accuracy(correct_ans, results_cache, results_nocache):
     return accuracy_cache, accuracy_nocache
 
 
-for embedding_name in [("OPENAI", None), ("HUGGINGFACE", "sentence-transformers/all-mpnet-base-v2")]:
-    for threshold in np.linspace(0.02, 0.20, 10):
+for embedding_name in [("HUGGINGFACE", "sentence-transformers/all-mpnet-base-v2")]:
+    for threshold in np.linspace(0.01, 0.20, 5):
         # print("Threshold", threshold)
         # print("Embedding", embedding_name)
 
